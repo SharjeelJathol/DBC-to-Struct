@@ -1,137 +1,120 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-enum keywords{
-    NONE,
-    B,
-    BO,
-    BO_,
-    S,
-    SG,
-    SG_
-};
+#define MSG_NAME_SIZE       50
+#define SENDER_NAME_SIZE    50
+
 
 enum line_type {
     NEWLINE,
     MESSAGE,
     SIGNAL,
-    REJECT
-};
-
-enum metadata {
-    MSG_ID,
-    MSG_NAME,
-    MSG_SIZE,
-    SENDER_NAME
 };
 
 // <message_id> <message_name>: <message_size> <sender_name>
 struct msg_metadata {
     int message_id;             //atoi()
-    char message_name[100];
-    size_t message_size;        //atoi()
-    char sender_name[100];
+    char message_name[MSG_NAME_SIZE];
+    int message_size;           //atoi()
+    char sender_name[SENDER_NAME_SIZE];
 };
 
 // Print msg_metadata struct
 void print_msg_metadata(struct msg_metadata *metadata){
     printf("Message ID: %d\n", metadata->message_id);
     printf("Message Name: %s\n", metadata->message_name);
-    printf("Message Size: %zu\n", metadata->message_size);
+    printf("Message Size: %d\n", metadata->message_size);
     printf("Sender Name: %s\n", metadata->sender_name);
 }
 
-void parse_by_character(char *filename){
+void parse_by_line(char *filename){
     FILE *dbc_file = fopen(filename, "r");
 
     if(dbc_file == NULL){
         perror("Please provide a valid filename");
-        return -1;
+        return;
     }
 
-    char character;
-    character = fgetc(dbc_file);
-    enum keywords line = NONE;
-    enum line_type type = NEWLINE; 
+    const int buffer_size = 200;
+    char buffer [buffer_size];
 
-    int count = 0;
+    enum line_type line = NEWLINE;
 
-    while(character != EOF){
-        // if(line == BO_ && character != '\n'){
-        //     if(character == ' ') {
-        //         break;
-        //     }
-
-        //     if(line == SENDER_NAME){}
-        //     else if(line == MSG_SIZE){}
-        //     else if(line == MSG_NAME){}
-        //     else if(line == MSG_ID){}
-        //     // else
-        // }
-        // if(character == '\n'){
-        //     line = NONE;
-        //     type = NEWLINE;
-
-        // }
-
-        if(line == BO_ || line == SG_){
-            printf("%c", character);
-        }
+    while(fgets(buffer, buffer_size, dbc_file)){
         
-        if(character == '\n'){
-            line = NONE;
-            type = NEWLINE;
-        }
-        // else if(line == BO_ || line == SG_){
-        //     printf("%c", character);
-        // }
-        else if(type == NEWLINE && line == NONE && (character != 'B' || character == '\t')){
-            // type = REJECT;  // maybe later set it to SIGNAL
-            type = SIGNAL;
-        }
-        else if(character == 'B' && line == NONE && type == NEWLINE){
-            line = B;
-            type = MESSAGE;
-        }
-        else if(character == 'O' && line == B && type == MESSAGE ){
-            line = BO;
-        }
-        else if(character == '_' && line == BO && type == MESSAGE){
-            line = BO_;
-            printf("BO_");
-        }
+        if(buffer[0] == 'B' && buffer[1] == 'O' && buffer[2] == '_'){
+            printf("%s", buffer);
+            line = MESSAGE;
 
-        // else if(character == '\n' && (line == BO_)){// || line == SG_)){
-        //     line = NONE;
-        //     type = NEWLINE;
-        //     printf("%c", character);
+        }
+        // else if(buffer[0] == ' ' && buffer[1] == 'S' && buffer[2] == 'G' && buffer[3] == '_'){
+        //     printf("%s", buffer);
+        //     line = SIGNAL;
         // }
-
-        else if(character == 'S' && line == NONE && type == SIGNAL){
-            line = S;
-            type = SIGNAL;
-        }
-        else if(character == 'G' && line == S && type == SIGNAL){
-            line = SG;
-        }
-        else if(character == '_' && line == SG && type == SIGNAL){
-            line = SG_;
-            printf("SG_");
-        }
-        else if(line == B || line == BO || line == S || line == SG || type == SIGNAL){
-            // line = NONE;
-            type = REJECT;
-            // type = NEWLINE;
-        }
-        // else if(line == S || line == SG || line == B || line == BO){
-        //     line = NONE;
-        //     type = NEWLINE;
-        // }
+        else
+            line = NEWLINE;
         
-        character = fgetc(dbc_file);
+
+        if(line == MESSAGE){
+            struct msg_metadata msg;
+            int line_index = 4;
+            while(buffer[line_index] != '\n'){
+                char temp_buffer[10];
+
+                // Read the Message ID
+                int index = 0;
+                while(buffer[line_index] != ' '){
+                    temp_buffer[index++] = buffer[line_index++];
+                }
+                temp_buffer[index] = '\0';
+                msg.message_id = atoi(temp_buffer);
+                
+                while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
+                    line_index++;
+                }
+
+                // Read the Message Name
+                index = 0;
+                while(buffer[line_index] != ' ' && buffer[line_index] != ':'){
+                    msg.message_name[index++] = buffer[line_index++];
+                }
+                msg.message_name[index++] = '\0';
+
+                while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
+                    line_index++;
+                }
+                
+                // Read the Message Size
+                index = 0;
+                while(buffer[line_index] != ' '){
+                    // printf("%c", buffer[line_index]);
+                    temp_buffer[index++] = buffer[line_index++];
+                }
+                temp_buffer[index++] = '\0';
+                msg.message_size = atoi(temp_buffer);
+
+                while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
+                    line_index++;
+                }
+                
+                // Read the Sender Name
+                index = 0;
+                while(buffer[line_index] != ' '){
+                    msg.sender_name[index++] = buffer[line_index++];
+                }
+                msg.sender_name[index++] = '\0';
+
+                // Print the read Message Definition
+                print_msg_metadata(&msg);
+
+                while(buffer[line_index] != '\n'){
+                    line_index++;
+                }
+            }
+            
+        }
+
     }
-
-    printf("\n");
 
     fclose(dbc_file);
 }
@@ -144,7 +127,11 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-    parse_by_character(argv[1]);
+    // parse_by_character(argv[1]);
+
+    parse_by_line(argv[1]);
+
+
 
 
     return 0;
