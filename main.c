@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MSG_NAME_SIZE       50
 #define SENDER_NAME_SIZE    50
-
+#define SIGNAL_NAME_SIZE    50
+#define MULTIPLEXER_SIZE    10
+#define UNIT_SIZE           10
+#define RECEIVER_NAME_SIZE  50
 
 enum line_type {
     NEWLINE,
@@ -15,16 +19,47 @@ enum line_type {
 struct msg_metadata {
     int message_id;             //atoi()
     char message_name[MSG_NAME_SIZE];
-    int message_size;           //atoi()
+    int message_size;           //atoi() size in bytes?
     char sender_name[SENDER_NAME_SIZE];
 };
 
+// M is used to define multiplexed. Will always be at the offset 0
+struct signal_metadata {
+    char signal_name[SIGNAL_NAME_SIZE];
+    bool multiplexed;                       // M 
+    int start_bit;
+    int length;                             // from the start bit
+    bool endian;                            // 1 of little, 0 for big
+    bool unsigned_value;                    // 1 for unsigned, 0 for signed
+    int factor;
+    int offset;
+    int min_value;
+    int max_value;
+    char value_unit[UNIT_SIZE];             // Measurement unit of value
+    char receiver_name[RECEIVER_NAME_SIZE];
+};
+
 // Print msg_metadata struct
-void print_msg_metadata(struct msg_metadata *metadata){
-    printf("Message ID: %d\n", metadata->message_id);
-    printf("Message Name: %s\n", metadata->message_name);
-    printf("Message Size: %d\n", metadata->message_size);
-    printf("Sender Name: %s\n", metadata->sender_name);
+void print_msg_metadata(struct msg_metadata *msg){
+    printf("Message ID: %d\n", msg->message_id);
+    printf("Message Name: %s\n", msg->message_name);
+    printf("Message Size: %d\n", msg->message_size);
+    printf("Sender Name: %s\n\n\n", msg->sender_name);
+}
+
+void print_signal_metadata(struct signal_metadata *signal){
+    printf("Signal Name: %s\n", signal->signal_name);
+    printf("Multiplexed: %d\n", signal->multiplexed);
+    printf("Start Bit: %d\n", signal->start_bit);
+    printf("Signal Length: %d\n", signal->length);
+    printf("Endian System: %d\n", signal->endian);
+    printf("Unsigned Value: %d\n", signal->unsigned_value);
+    printf("Factor: %d\n", signal->factor);
+    printf("Offset: %d\n", signal->offset);
+    printf("Minimum Value: %d\n", signal->min_value);
+    printf("Maximum Value: %d\n", signal->max_value);
+    printf("Measurement Unit: %s\n", signal->value_unit);
+    printf("Receiver Name: %s\n\n\n", signal->receiver_name);
 }
 
 void parse_by_line(char *filename){
@@ -41,16 +76,16 @@ void parse_by_line(char *filename){
     enum line_type line = NEWLINE;
 
     while(fgets(buffer, buffer_size, dbc_file)){
-        
+
         if(buffer[0] == 'B' && buffer[1] == 'O' && buffer[2] == '_'){
             printf("%s", buffer);
             line = MESSAGE;
 
         }
-        // else if(buffer[0] == ' ' && buffer[1] == 'S' && buffer[2] == 'G' && buffer[3] == '_'){
-        //     printf("%s", buffer);
-        //     line = SIGNAL;
-        // }
+        else if(buffer[0] == ' ' && buffer[1] == 'S' && buffer[2] == 'G' && buffer[3] == '_'){
+            printf("%s", buffer);
+            line = SIGNAL;
+        }
         else
             line = NEWLINE;
         
@@ -87,7 +122,6 @@ void parse_by_line(char *filename){
                 // Read the Message Size
                 index = 0;
                 while(buffer[line_index] != ' '){
-                    // printf("%c", buffer[line_index]);
                     temp_buffer[index++] = buffer[line_index++];
                 }
                 temp_buffer[index++] = '\0';
@@ -113,6 +147,155 @@ void parse_by_line(char *filename){
             }
             
         }
+        else if(line == SIGNAL){
+            struct signal_metadata *signal = malloc(sizeof(struct signal_metadata));
+            int line_index = 5;
+            char integer_buffer[10];
+            while(buffer[line_index] != '\n'){
+                int index = 0;
+                // Get the Signal
+                while(buffer[line_index] != ' '){
+                    signal->signal_name[index++] = buffer[line_index++];
+                }
+                signal->signal_name[index++] = '\0';
+                index = 0;
+
+                // parse past the spaces
+                while(buffer[line_index] == ' '){
+                    line_index++;
+                }
+
+                // Check if the signal is multiplexed or not
+                if(buffer[line_index] != ':'){
+                    // set the multiplexed flag
+                    signal->multiplexed = true;
+                }else{
+                    signal->multiplexed = false;
+                }
+
+                // parse past the multiplexed tag
+                while(buffer[line_index] != ' '){
+                    line_index++;
+                }
+
+                // parse past the spaces and colon
+                while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
+                    line_index++;
+                }
+
+                // Read the start bit
+                index = 0;
+                while(buffer[line_index] != '|'){
+                    integer_buffer[index++] = buffer[line_index++];
+                }
+                integer_buffer[index] = '\0';
+                signal->start_bit = atoi(integer_buffer);
+
+                // parse past the '|'
+                line_index++;
+
+                // Length
+                index = 0;
+                while(buffer[line_index] != '@'){
+                    integer_buffer[index++] = buffer[line_index++];
+                }
+                integer_buffer[index] = '\0';
+                signal->length = atoi(integer_buffer);
+
+                // parse past the '@'
+                line_index++;
+
+                // Endian
+                if(buffer[line_index] == '1')
+                    signal->endian = 1;     // little endian
+                else if(buffer[line_index] == '0')
+                    signal->endian = 0;     // big endian
+                line_index++;
+
+                // unsigned value
+                if(buffer[line_index] == '+')
+                    signal->unsigned_value = 1;     // Signed value
+                else if(buffer[line_index] == '-')
+                    signal->unsigned_value = 0;     // Unsigned value
+                line_index++;
+
+                // parse past the spaces
+                while(buffer[line_index] == ' '){
+                    line_index++;
+                }
+
+                // Factor
+                index = 0;
+                while(buffer[++line_index] != ','){
+                    integer_buffer[index++] = buffer[line_index];
+                }
+                integer_buffer[index] = '\0';
+                signal->factor = atoi(integer_buffer);
+
+                // Offset
+                index = 0;
+                while(buffer[++line_index] != ')'){
+                    integer_buffer[index++] = buffer[line_index];
+                }
+                integer_buffer[index] = '\0';
+                signal->offset = atoi(integer_buffer);
+                line_index++;
+
+                // parse past the spaces
+                while(buffer[line_index] == ' '){
+                    line_index++;
+                }
+
+                // min
+                index = 0;
+                while(buffer[++line_index] != '|'){
+                    integer_buffer[index++] = buffer[line_index];
+                }
+                integer_buffer[index] = '\0';
+                signal->min_value = atoi(integer_buffer);
+
+                // max
+                index = 0;
+                while(buffer[++line_index] != ']'){
+                    integer_buffer[index++] = buffer[line_index];
+                }
+                integer_buffer[index] = '\0';
+                signal->max_value = atoi(integer_buffer);
+                line_index++;
+
+                // parse past the spaces
+                while(buffer[line_index] == ' '){
+                    line_index++;
+                }
+
+                // unit
+                index = 0;
+                line_index++;
+                while(buffer[line_index] != '\"'){
+                    signal->value_unit[index++] = buffer[line_index++];
+                }
+                signal->value_unit[index] = '\0';
+                line_index++;
+
+                // parse past the spaces
+                while(buffer[line_index] == ' '){
+                    line_index++;
+                }
+
+                // receiver name
+                index = 0;
+                while(buffer[line_index] != '\n'){
+                    signal->receiver_name[index++] = buffer[line_index++];
+                }
+                signal->receiver_name[index] = '\0';
+
+                print_signal_metadata(signal);
+
+                while(buffer[line_index] != '\n'){
+                    line_index++;
+                }
+            }
+        }
 
     }
 
@@ -127,12 +310,7 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-    // parse_by_character(argv[1]);
-
     parse_by_line(argv[1]);
-
-
-
 
     return 0;
 }

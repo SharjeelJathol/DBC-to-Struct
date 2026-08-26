@@ -5,7 +5,7 @@ Example:
 BO_ 21 accu_stack_info: 8 accu_distri
 
 Signal definition: SG_
-SG_ <signal_name> : <start_bit>|<length>@<endianness>+/- (<factor>,<offset>) [<min>|<max>] "<unit>" <receiver_name>
+SG_ <signal_name> <multiplexed?> : <start_bit>|<length>@<endianness>+/- (<factor>,<offset>) [<min>|<max>] "<unit>" <receiver_name>
 <!-- + for unsigned and - for signed  -->
 <!-- real_value = raw × factor + offset -->
 <!-- Multplexing Signal SG_ <signal_name> <multiplexer_signal> : ... 
@@ -25,3 +25,8 @@ VAL_ <signal_name> <value> "<text>";
 
 
 CM_
+
+
+
+
+TODO: Handling the floating point datatype
