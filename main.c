@@ -94,8 +94,7 @@ void parse_by_line(char *filename){
     enum line_type line = NEWLINE;
 
     struct msg_metadata *msg = NULL;
-    struct signal_metadata *current_signal = NULL;
-
+    
     while(fgets(buffer, buffer_size, dbc_file)){
 
         if(buffer[0] == 'B' && buffer[1] == 'O' && buffer[2] == '_'){
@@ -119,8 +118,8 @@ void parse_by_line(char *filename){
         if(line == MESSAGE){
             msg = (struct msg_metadata*)malloc(sizeof(struct msg_metadata));
             msg->signals_head = NULL;
-            current_signal = NULL;
-            
+            // current_signal = NULL;
+
             int line_index = 4;
             while(buffer[line_index] != '\n'){
                 char temp_buffer[10];
@@ -325,15 +324,35 @@ void parse_by_line(char *filename){
                 }
             }
 
-            if(current_signal == NULL){
-                current_signal = signal;
+            if(msg->signals_head == NULL){
+                msg->signals_head = signal;
                 signal = NULL;
-                msg->signals_head = current_signal;
             }
             else{
-                current_signal->next = signal;
-                current_signal = current_signal->next;
-                signal = NULL;
+                struct signal_metadata *current = msg->signals_head;
+                struct signal_metadata *prev = NULL;
+                while(current != NULL){
+                    if(signal->start_bit == current->start_bit) break;
+                    else if(signal->start_bit < current->start_bit){
+                        if(prev == NULL){
+                            signal->next = current;
+                            msg->signals_head = signal;
+                            signal = NULL;
+                            break;
+                        }
+                        prev->next = signal;
+                        signal->next = current;
+                        signal = NULL;
+                        break;
+                    }
+                    else if(current->next == NULL){
+                        current->next = signal;
+                        signal = NULL;
+                        break;
+                    }
+                    prev = current;
+                    current = current->next;
+                }
             }
         }
 
