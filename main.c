@@ -21,6 +21,8 @@ struct msg_metadata {
     char message_name[MSG_NAME_SIZE];
     int message_size;           //atoi() size in bytes?
     char sender_name[SENDER_NAME_SIZE];
+
+    struct signal_metadata *signals_head;
 };
 
 // M is used to define multiplexed. Will always be at the offset 0
@@ -37,6 +39,8 @@ struct signal_metadata {
     int max_value;
     char value_unit[UNIT_SIZE];             // Measurement unit of value
     char receiver_name[RECEIVER_NAME_SIZE];
+
+    struct signal_metadata *next;
 };
 
 // Print msg_metadata struct
@@ -62,6 +66,18 @@ void print_signal_metadata(struct signal_metadata *signal){
     printf("Receiver Name: %s\n\n\n", signal->receiver_name);
 }
 
+void print_msg(struct msg_metadata *msg){
+    if(msg != NULL){
+        print_msg_metadata(msg);
+        struct signal_metadata *current = msg->signals_head;
+        while(current != NULL){
+            print_signal_metadata(current);
+            current = current->next;
+        }
+    }
+    return;
+}
+
 void parse_by_line(char *filename){
     FILE *dbc_file = fopen(filename, "r");
 
@@ -70,10 +86,15 @@ void parse_by_line(char *filename){
         return;
     }
 
+    // Buffer space ot read lines into
     const int buffer_size = 200;
     char buffer [buffer_size];
 
+    // By default we are at a new line
     enum line_type line = NEWLINE;
+
+    struct msg_metadata *msg = NULL;
+    struct signal_metadata *current_signal = NULL;
 
     while(fgets(buffer, buffer_size, dbc_file)){
 
@@ -86,12 +107,20 @@ void parse_by_line(char *filename){
             printf("%s", buffer);
             line = SIGNAL;
         }
-        else
+        else if(line == SIGNAL){
+            if(msg) print_msg(msg);
             line = NEWLINE;
+        }
+        else{
+            line = NEWLINE;
+        }
         
 
         if(line == MESSAGE){
-            struct msg_metadata msg;
+            msg = (struct msg_metadata*)malloc(sizeof(struct msg_metadata));
+            msg->signals_head = NULL;
+            current_signal = NULL;
+            
             int line_index = 4;
             while(buffer[line_index] != '\n'){
                 char temp_buffer[10];
@@ -102,7 +131,7 @@ void parse_by_line(char *filename){
                     temp_buffer[index++] = buffer[line_index++];
                 }
                 temp_buffer[index] = '\0';
-                msg.message_id = atoi(temp_buffer);
+                msg->message_id = atoi(temp_buffer);
                 
                 while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
                     line_index++;
@@ -111,9 +140,9 @@ void parse_by_line(char *filename){
                 // Read the Message Name
                 index = 0;
                 while(buffer[line_index] != ' ' && buffer[line_index] != ':'){
-                    msg.message_name[index++] = buffer[line_index++];
+                    msg->message_name[index++] = buffer[line_index++];
                 }
-                msg.message_name[index++] = '\0';
+                msg->message_name[index++] = '\0';
 
                 while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
                     line_index++;
@@ -125,7 +154,7 @@ void parse_by_line(char *filename){
                     temp_buffer[index++] = buffer[line_index++];
                 }
                 temp_buffer[index++] = '\0';
-                msg.message_size = atoi(temp_buffer);
+                msg->message_size = atoi(temp_buffer);
 
                 while(buffer[line_index] == ' ' || buffer[line_index] == ':'){
                     line_index++;
@@ -134,12 +163,12 @@ void parse_by_line(char *filename){
                 // Read the Sender Name
                 index = 0;
                 while(buffer[line_index] != ' '){
-                    msg.sender_name[index++] = buffer[line_index++];
+                    msg->sender_name[index++] = buffer[line_index++];
                 }
-                msg.sender_name[index++] = '\0';
+                msg->sender_name[index++] = '\0';
 
                 // Print the read Message Definition
-                print_msg_metadata(&msg);
+                // print_msg_metadata(msg);
 
                 while(buffer[line_index] != '\n'){
                     line_index++;
@@ -148,7 +177,7 @@ void parse_by_line(char *filename){
             
         }
         else if(line == SIGNAL){
-            struct signal_metadata *signal = malloc(sizeof(struct signal_metadata));
+            struct signal_metadata *signal = (struct signal_metadata*)malloc(sizeof(struct signal_metadata));
             int line_index = 5;
             char integer_buffer[10];
             while(buffer[line_index] != '\n'){
@@ -289,16 +318,28 @@ void parse_by_line(char *filename){
                 }
                 signal->receiver_name[index] = '\0';
 
-                print_signal_metadata(signal);
+                // print_signal_metadata(signal);
 
                 while(buffer[line_index] != '\n'){
                     line_index++;
                 }
             }
+
+            if(current_signal == NULL){
+                current_signal = signal;
+                signal = NULL;
+                msg->signals_head = current_signal;
+            }
+            else{
+                current_signal->next = signal;
+                current_signal = current_signal->next;
+                signal = NULL;
+            }
         }
 
     }
-
+    
+    printf("\n");
     fclose(dbc_file);
 }
 
