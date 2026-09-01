@@ -78,6 +78,37 @@ void print_msg(struct msg_metadata *msg){
     return;
 }
 
+void write_header_file(char* filename, struct msg_metadata *msg){
+    // to uppercase and change extension to .hpp
+    for(int i = 0; filename[i] != '\0'; i++){
+        if(filename[i] == '.'){
+            filename[i+1] = 'h';
+            filename[i+2] = 'p';
+            filename[i+3] = 'p';
+            filename[i+4] = '\0';
+            break;
+        }
+        if(filename[i] >= 'a' && filename[i] <= 'z'){
+            filename[i] = filename[i] - 32;
+        }
+    }
+
+    FILE *header_file = fopen(filename, "w");
+    fputs("#ifndef HEADER_HPP\n", header_file);
+    fputs("#define HEADER_HPP\n\n", header_file);
+
+    fprintf(header_file, "struct %s {\n", msg->message_name);
+    struct signal_metadata *current = msg->signals_head;
+    while(current != NULL){
+        fprintf(header_file, "    int %s\t: %d;\n", current->signal_name, current->length);
+        current = current->next;
+    }
+    fprintf(header_file, "};\n");
+    
+    fputs("\n#endif", header_file);
+    fclose(header_file);
+}
+
 void parse_by_line(char *filename){
     FILE *dbc_file = fopen(filename, "r");
 
@@ -94,7 +125,7 @@ void parse_by_line(char *filename){
     enum line_type line = NEWLINE;
 
     struct msg_metadata *msg = NULL;
-    
+
     while(fgets(buffer, buffer_size, dbc_file)){
 
         if(buffer[0] == 'B' && buffer[1] == 'O' && buffer[2] == '_'){
@@ -107,7 +138,9 @@ void parse_by_line(char *filename){
             line = SIGNAL;
         }
         else if(line == SIGNAL){
-            if(msg) print_msg(msg);
+            // if(msg) print_msg(msg);
+            write_header_file(filename, msg);
+            free(msg);
             line = NEWLINE;
         }
         else{
