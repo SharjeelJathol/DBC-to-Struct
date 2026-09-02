@@ -23,6 +23,8 @@ struct msg_metadata {
     char sender_name[SENDER_NAME_SIZE];
 
     struct signal_metadata *signals_head;
+
+    struct msg_metadata *next;
 };
 
 // M is used to define multiplexed. Will always be at the offset 0
@@ -78,7 +80,7 @@ void print_msg(struct msg_metadata *msg){
     return;
 }
 
-void write_header_file(char* filename, struct msg_metadata *msg){
+void write_header_file(char* filename, struct msg_metadata *msg_head){
     // to uppercase and change extension to .hpp
     for(int i = 0; filename[i] != '\0'; i++){
         if(filename[i] == '.'){
@@ -97,13 +99,20 @@ void write_header_file(char* filename, struct msg_metadata *msg){
     fputs("#ifndef HEADER_HPP\n", header_file);
     fputs("#define HEADER_HPP\n\n", header_file);
 
-    fprintf(header_file, "struct %s {\n", msg->message_name);
-    struct signal_metadata *current = msg->signals_head;
-    while(current != NULL){
-        fprintf(header_file, "    int %s\t: %d;\n", current->signal_name, current->length);
-        current = current->next;
+    
+
+    struct msg_metadata *msg = msg_head;
+    while(msg != NULL){
+        fprintf(header_file, "struct %s {\n", msg->message_name);
+        struct signal_metadata *current = msg->signals_head;
+        while(current != NULL){
+            fprintf(header_file, "    int %s\t\t: %d;\n", current->signal_name, current->length);
+            current = current->next;
+        }
+        fprintf(header_file, "};\n\n");
+        msg = msg->next;
     }
-    fprintf(header_file, "};\n");
+
     
     fputs("\n#endif", header_file);
     fclose(header_file);
@@ -124,6 +133,7 @@ void parse_by_line(char *filename){
     // By default we are at a new line
     enum line_type line = NEWLINE;
 
+    struct msg_metadata *msg_head = NULL;
     struct msg_metadata *msg = NULL;
 
     while(fgets(buffer, buffer_size, dbc_file)){
@@ -139,8 +149,20 @@ void parse_by_line(char *filename){
         }
         else if(line == SIGNAL){
             // if(msg) print_msg(msg);
-            write_header_file(filename, msg);
-            free(msg);
+            if(msg){
+                if(msg_head){
+                    struct msg_metadata *current = msg_head;
+                    while(current->next != NULL){
+                        current = current->next;
+                    }
+                    current->next = msg;
+                }
+                else{
+                    msg_head = msg;
+                }
+            }
+            // write_header_file(filename, msg);
+            // free(msg);
             line = NEWLINE;
         }
         else{
@@ -151,6 +173,7 @@ void parse_by_line(char *filename){
         if(line == MESSAGE){
             msg = (struct msg_metadata*)malloc(sizeof(struct msg_metadata));
             msg->signals_head = NULL;
+            msg->next = NULL;
             // current_signal = NULL;
 
             int line_index = 4;
@@ -392,6 +415,8 @@ void parse_by_line(char *filename){
     }
     
     printf("\n");
+    write_header_file(filename, msg_head);
+    free(msg_head);
     fclose(dbc_file);
 }
 
